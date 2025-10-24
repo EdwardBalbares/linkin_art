@@ -507,6 +507,21 @@ $outOfStockCount = $rowOutOfStock['out_of_stock_count'];
         padding: 2rem 1rem;
     }
 
+    /* Force inventory content to full width inside dynamic content host */
+    .allContent-section,
+    .allContent-section .container,
+    .allContent-section .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    .allContent-section .row > [class*="col-"],
+    .allContent-section [class^="col-"],
+    .allContent-section [class*=" col-"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
     .row {
         display: flex;
         flex-wrap: wrap;
@@ -1761,6 +1776,82 @@ $outOfStockCount = $rowOutOfStock['out_of_stock_count'];
         }
     `;
     document.head.appendChild(style);
+    </script>
+
+    <script>
+    // Ensure inventory view keeps full width after edits in staff panel
+    (function ensureInventoryFullWidth() {
+      function normalizeInventoryLayout() {
+        const contentHost = document.querySelector('.allContent-section');
+        if (!contentHost) return;
+
+        // Make host fluid and any nested containers fluid
+        contentHost.classList.add('container-fluid');
+        contentHost.classList.remove('container');
+        contentHost.querySelectorAll('.container').forEach(function(containerEl) {
+          containerEl.classList.add('container-fluid');
+          containerEl.classList.remove('container');
+        });
+
+        // Expand direct child columns of any row to full width
+        contentHost.querySelectorAll('.row > [class*="col-"]').forEach(function(col) {
+          const classesToRemove = [];
+          col.classList.forEach(function(cls) {
+            const m = cls.match(/^col(?:-(?:xs|sm|md|lg|xl))?-(\d{1,2})$/);
+            if (m && m[1] !== '12') classesToRemove.push(cls);
+          });
+          if (classesToRemove.length) {
+            classesToRemove.forEach(c => col.classList.remove(c));
+            col.classList.add('col-12', 'col-sm-12', 'col-md-12', 'col-lg-12', 'col-xl-12');
+          }
+        });
+
+        // If tables/lists are wrapped deeper inside narrow columns, fix those columns too
+        const anchors = contentHost.querySelectorAll('table, .table, .table-responsive, .inventory-table, .inventory-list, #inventoryTable');
+        anchors.forEach(function(node) {
+          let el = node.parentElement;
+          while (el && el !== contentHost) {
+            if ([...el.classList].some(c => /^col(?:-(?:xs|sm|md|lg|xl))?-\d{1,2}$/.test(c))) {
+              const toRemove = [];
+              el.classList.forEach(function(cls) {
+                const m = cls.match(/^col(?:-(?:xs|sm|md|lg|xl))?-(\d{1,2})$/);
+                if (m && m[1] !== '12') toRemove.push(cls);
+              });
+              if (toRemove.length) {
+                toRemove.forEach(c => el.classList.remove(c));
+                el.classList.add('col-12', 'col-sm-12', 'col-md-12', 'col-lg-12', 'col-xl-12');
+              }
+            }
+            el = el.parentElement;
+          }
+        });
+      }
+
+      const contentHost = document.querySelector('.allContent-section');
+      if (!contentHost) return;
+
+      // Observe dynamic content changes (AJAX-loaded inventory views)
+      const observer = new MutationObserver(function() { normalizeInventoryLayout(); });
+      observer.observe(contentHost, { childList: true, subtree: true, attributes: true });
+
+      // Nudge layout fixes around typical edit interactions
+      document.addEventListener('click', function(event) {
+        const actionable = event.target && (event.target.closest('button, a'));
+        if (!actionable) return;
+        const btn = actionable;
+        const label = (btn.textContent || '').toLowerCase();
+        const looksLikeEdit = label.includes('edit') || btn.matches('[data-action="edit"], .btn-edit, .fa-edit, .fa-pen, .fa-pencil');
+        if (looksLikeEdit && contentHost.contains(btn)) {
+          // Run normalization a few times to catch async DOM updates
+          setTimeout(normalizeInventoryLayout, 0);
+          setTimeout(normalizeInventoryLayout, 200);
+          setTimeout(normalizeInventoryLayout, 500);
+        }
+      }, true);
+
+      // Initial run in case content is already present
+      normalizeInventoryLayout();
+    })();
     </script>
 </body>
 </html>
