@@ -1280,6 +1280,65 @@ $outOfStockCount = $rowOutOfStock['out_of_stock_count'];
         };
     }
   </script>
+
+  <script>
+    // Ensure inventory view keeps full width after edits
+    (function ensureInventoryFullWidth() {
+      function normalizeInventoryLayout() {
+        const contentHost = document.querySelector('.allContent-section');
+        if (!contentHost) return;
+
+        // Promote any nested .container to .container-fluid inside the dynamic content host
+        contentHost.querySelectorAll('.container').forEach(function(containerEl) {
+          containerEl.classList.add('container-fluid');
+          containerEl.classList.remove('container');
+        });
+
+        // If a table/list is wrapped in a narrow column (e.g., col-lg-3), expand it to full width
+        const mainLists = contentHost.querySelectorAll('table, .inventory-table, .inventory-list, #inventoryTable');
+        mainLists.forEach(function(listEl) {
+          const narrowCol = listEl.closest('.col-lg-3, .col-md-3, .col-sm-3, .col-lg-4, .col-md-4, .col-sm-4');
+          if (narrowCol) {
+            narrowCol.classList.remove('col-lg-3', 'col-md-3', 'col-sm-3', 'col-lg-4', 'col-md-4', 'col-sm-4');
+            narrowCol.classList.add('col-lg-12', 'col-md-12', 'col-sm-12');
+          }
+        });
+
+        // Also correct any top-level single narrow column directly under the content host
+        contentHost.querySelectorAll(':scope > .row > .col-lg-3, :scope > .row > .col-md-3, :scope > .row > .col-sm-3, :scope > .row > .col-lg-4, :scope > .row > .col-md-4, :scope > .row > .col-sm-4').forEach(function(colEl) {
+          colEl.classList.remove('col-lg-3', 'col-md-3', 'col-sm-3', 'col-lg-4', 'col-md-4', 'col-sm-4');
+          colEl.classList.add('col-lg-12', 'col-md-12', 'col-sm-12');
+        });
+      }
+
+      const contentHost = document.querySelector('.allContent-section');
+      if (!contentHost) return;
+
+      // Observe dynamic content changes (AJAX-loaded inventory views)
+      const observer = new MutationObserver(function() {
+        normalizeInventoryLayout();
+      });
+      observer.observe(contentHost, { childList: true, subtree: true, attributes: true });
+
+      // Nudge layout fixes around typical edit interactions
+      document.addEventListener('click', function(event) {
+        const actionable = event.target && (event.target.closest('button, a'));
+        if (!actionable) return;
+        const btn = actionable;
+        const label = (btn.textContent || '').toLowerCase();
+        const looksLikeEdit = label.includes('edit') || btn.matches('[data-action="edit"], .btn-edit, .fa-edit, .fa-pen, .fa-pencil');
+        if (looksLikeEdit && contentHost.contains(btn)) {
+          // Run normalization a few times to catch async DOM updates
+          setTimeout(normalizeInventoryLayout, 0);
+          setTimeout(normalizeInventoryLayout, 200);
+          setTimeout(normalizeInventoryLayout, 500);
+        }
+      }, true);
+
+      // Initial run in case content is already present
+      normalizeInventoryLayout();
+    })();
+  </script>
 </body>
 </html>
 
