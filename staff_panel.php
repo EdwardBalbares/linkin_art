@@ -507,6 +507,21 @@ $outOfStockCount = $rowOutOfStock['out_of_stock_count'];
         padding: 2rem 1rem;
     }
 
+    /* Force inventory content to full width inside dynamic content host */
+    .allContent-section,
+    .allContent-section .container,
+    .allContent-section .container-fluid {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    .allContent-section .row > [class*="col-"],
+    .allContent-section [class^="col-"],
+    .allContent-section [class*=" col-"] {
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
     .row {
         display: flex;
         flex-wrap: wrap;
@@ -1770,26 +1785,45 @@ $outOfStockCount = $rowOutOfStock['out_of_stock_count'];
         const contentHost = document.querySelector('.allContent-section');
         if (!contentHost) return;
 
-        // Promote any nested .container to .container-fluid inside the dynamic content host
+        // Make host fluid and any nested containers fluid
+        contentHost.classList.add('container-fluid');
+        contentHost.classList.remove('container');
         contentHost.querySelectorAll('.container').forEach(function(containerEl) {
           containerEl.classList.add('container-fluid');
           containerEl.classList.remove('container');
         });
 
-        // If a table/list is wrapped in a narrow column (e.g., col-lg-3), expand it to full width
-        const mainLists = contentHost.querySelectorAll('table, .inventory-table, .inventory-list, #inventoryTable');
-        mainLists.forEach(function(listEl) {
-          const narrowCol = listEl.closest('.col-lg-3, .col-md-3, .col-sm-3, .col-lg-4, .col-md-4, .col-sm-4');
-          if (narrowCol) {
-            narrowCol.classList.remove('col-lg-3', 'col-md-3', 'col-sm-3', 'col-lg-4', 'col-md-4', 'col-sm-4');
-            narrowCol.classList.add('col-lg-12', 'col-md-12', 'col-sm-12');
+        // Expand direct child columns of any row to full width
+        contentHost.querySelectorAll('.row > [class*="col-"]').forEach(function(col) {
+          const classesToRemove = [];
+          col.classList.forEach(function(cls) {
+            const m = cls.match(/^col(?:-(?:xs|sm|md|lg|xl))?-(\d{1,2})$/);
+            if (m && m[1] !== '12') classesToRemove.push(cls);
+          });
+          if (classesToRemove.length) {
+            classesToRemove.forEach(c => col.classList.remove(c));
+            col.classList.add('col-12', 'col-sm-12', 'col-md-12', 'col-lg-12', 'col-xl-12');
           }
         });
 
-        // Also correct any top-level single narrow column directly under the content host
-        contentHost.querySelectorAll(':scope > .row > .col-lg-3, :scope > .row > .col-md-3, :scope > .row > .col-sm-3, :scope > .row > .col-lg-4, :scope > .row > .col-md-4, :scope > .row > .col-sm-4').forEach(function(colEl) {
-          colEl.classList.remove('col-lg-3', 'col-md-3', 'col-sm-3', 'col-lg-4', 'col-md-4', 'col-sm-4');
-          colEl.classList.add('col-lg-12', 'col-md-12', 'col-sm-12');
+        // If tables/lists are wrapped deeper inside narrow columns, fix those columns too
+        const anchors = contentHost.querySelectorAll('table, .table, .table-responsive, .inventory-table, .inventory-list, #inventoryTable');
+        anchors.forEach(function(node) {
+          let el = node.parentElement;
+          while (el && el !== contentHost) {
+            if ([...el.classList].some(c => /^col(?:-(?:xs|sm|md|lg|xl))?-\d{1,2}$/.test(c))) {
+              const toRemove = [];
+              el.classList.forEach(function(cls) {
+                const m = cls.match(/^col(?:-(?:xs|sm|md|lg|xl))?-(\d{1,2})$/);
+                if (m && m[1] !== '12') toRemove.push(cls);
+              });
+              if (toRemove.length) {
+                toRemove.forEach(c => el.classList.remove(c));
+                el.classList.add('col-12', 'col-sm-12', 'col-md-12', 'col-lg-12', 'col-xl-12');
+              }
+            }
+            el = el.parentElement;
+          }
         });
       }
 
@@ -1797,9 +1831,7 @@ $outOfStockCount = $rowOutOfStock['out_of_stock_count'];
       if (!contentHost) return;
 
       // Observe dynamic content changes (AJAX-loaded inventory views)
-      const observer = new MutationObserver(function() {
-        normalizeInventoryLayout();
-      });
+      const observer = new MutationObserver(function() { normalizeInventoryLayout(); });
       observer.observe(contentHost, { childList: true, subtree: true, attributes: true });
 
       // Nudge layout fixes around typical edit interactions
